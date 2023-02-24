@@ -1,2 +1,2 @@
 # mrseql
-A sktime-independent Python wrapper for MrSEQL
+A standalone Python wrapper for MrSEQL
