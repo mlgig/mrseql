@@ -17,7 +17,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
-from sktime.transformations.panel.dictionary_based import SFA, SFAFast
+from sktime.transformations.panel.dictionary_based import SFA
 from sktime.utils.validation.panel import check_X, check_X_y
 
 __author__ = ["Thach Le Nguyen"]
