@@ -155,7 +155,8 @@ jobs:
           # twine upload ${{ github.workspace }}/dist/*.tar.gz
           twine upload --repository testpypi ${{ github.workspace }}/dist/*.tar.gz
         env:
-          TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+          # TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
+          TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TWINE_PASSWORD }}
 
       - name: Github release
