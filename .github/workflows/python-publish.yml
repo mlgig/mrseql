@@ -13,7 +13,8 @@ jobs:
       matrix:
         os: [ubuntu-22.04]
 
-        cibw_python: ["cp38", "cp39", "cp310", "cp311", "pp38"]
+        # cibw_python: ["cp38", "cp39", "cp310", "cp311", "pp38"]
+        cibw_python: ["cp310", "cp311"]
         # SciPy and NumPy don't support musllinux
         cibw_libc: ["manylinux"]
         cibw_arch: ["x86_64", "i686", "aarch64"]
