@@ -26,6 +26,7 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+src/mrseql/mrseql.cpp
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
