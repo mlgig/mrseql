@@ -1,0 +1,3 @@
+include src/mrseql/*.h
+include src/mrseql/mrseql.pyx
+include src/mrseql/*.cpp
