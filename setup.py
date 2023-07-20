@@ -14,7 +14,7 @@ ext = Extension('mrseql.mrseql',
 
 setup(
     name='mrseql',
-    version="0.0.1",
+    version="0.0.2",
     author='Thach Le Nguyen',
     author_email='thalng@protonmail.com',
     setup_requires=[
