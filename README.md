@@ -3,7 +3,10 @@ A standalone Python wrapper for [MrSEQL](https://github.com/lnthach/Mr-SEQL)
 
 ## Installation
 
+## Installation using pip
+pip install mrseql
 
+## Installation from source
 ```
 git clone https://github.com/mlgig/mrseql.git
 
