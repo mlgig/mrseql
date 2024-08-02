@@ -1,0 +1,5 @@
+include src/mrseql/*.h
+include src/mrseql/mrseql.pyx
+include src/mrseql/*.cpp
+include src/mrseql/sfa/*.h
+include src/mrseql/sfa/SFAWrapper.cpp
