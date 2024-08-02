@@ -17,7 +17,58 @@ def load_coffee_dataset():
 
     return X_train, X_test, y_train, y_test
 
-def test_mrsqm_cross_validate():    
+# @pytest.mark.parametrize("symrep", [('sax'), ('sfa'), ('sax','sfa')])
+# def test_mrsqm_coffee_accuracy(symrep):    
+
+#     # Load the coffee dataset
+#     X_train, X_test, y_train, y_test = load_coffee_dataset()
+
+#     # Create a MrSQMClassifier
+#     clf = MrSEQLClassifier(symrep = symrep)
+
+#     # Train the classifier
+#     clf.fit(X_train, y_train)
+
+#     # Make predictions
+#     y_pred = clf.predict(X_test)
+
+#     # Check the accuracy
+#     assert accuracy_score(y_test, y_pred) > 0.9
+
+
+@pytest.mark.parametrize("symrep", [('sax'), ('sfa'), ('sax','sfa')])
+def test_mrsqm_consistency(symrep):    
+
+    # Load the coffee dataset
+    X_train, X_test, y_train, y_test = load_coffee_dataset()
+
+    # Create a MrSQMClassifier
+    clf_1 = MrSEQLClassifier(symrep = symrep)
+
+    # Train the classifier
+    clf_1.fit(X_train, y_train)
+
+    # Make predictions
+    y_pred_1 = clf_1.predict(X_test)
+
+    # Check the accuracy
+    assert accuracy_score(y_test, y_pred_1) > 0.9
+
+    # Create a MrSQMClassifier
+    clf_2 = MrSEQLClassifier(symrep = symrep)
+
+    # Train the classifier
+    clf_2.fit(X_train, y_train)
+
+    # Make predictions
+    y_pred_2 = clf_2.predict(X_test)
+
+    # Check if the predictions are the same
+    assert approx(y_pred_1) == y_pred_2
+
+
+@pytest.mark.parametrize("symrep", [('sax'), ('sfa'), ('sax','sfa')])
+def test_mrsqm_cross_validate(symrep):    
     from sklearn.model_selection import cross_validate
     # Load the coffee dataset
     X_train, X_test, y_train, y_test = load_coffee_dataset()
@@ -26,20 +77,20 @@ def test_mrsqm_cross_validate():
     y = np.concatenate([y_train, y_test])
 
     # Create a MrSQMClassifier
-    clf = MrSEQLClassifier()
+    clf = MrSEQLClassifier(symrep = symrep)
 
     # Cross validate the classifier    
     scores = cross_validate(clf, X, y, scoring=['accuracy'], cv=3)
     # Check the mean accuracy
     assert np.mean(scores['test_accuracy']) > 0.9
 
-# @pytest.mark.parametrize("nsax,nsfa", [(0, 1), (1, 0)])
-def test_mrsqm_refit(nsax, nsfa):
+@pytest.mark.parametrize("symrep", [('sax'), ('sfa'), ('sax','sfa')])
+def test_mrsqm_refit(symrep):
     # Load the coffee dataset
     X_train, X_test, y_train, y_test = load_coffee_dataset()
 
     # Create a MrSQMClassifier
-    clf = MrSEQLClassifier()
+    clf = MrSEQLClassifier(symrep = symrep)
 
     # Train the classifier
     clf.fit(X_train, y_train)
@@ -57,30 +108,15 @@ def test_mrsqm_refit(nsax, nsfa):
     assert approx(y_pred_1) == y_pred_2
 
     # Refit the classifier with a different set
-    clf_2 = MrSEQLClassifier()
-    clf_2.fit(X_test, y_test)
+    clf_2 = MrSEQLClassifier(symrep = symrep)
+    clf_2.fit(X_test[...,:100], y_test) # different length time series
     clf_2.fit(X_train, y_train)
     y_pred_3 = clf_2.predict_proba(X_test)
 
     # Check if the predictions are the same
     assert approx(y_pred_3) == y_pred_1
 
-def test_mrsqm_coffee_accuracy():    
 
-    # Load the coffee dataset
-    X_train, X_test, y_train, y_test = load_coffee_dataset()
-
-    # Create a MrSQMClassifier
-    clf = MrSEQLClassifier()
-
-    # Train the classifier
-    clf.fit(X_train, y_train)
-
-    # Make predictions
-    y_pred = clf.predict(X_test)
-
-    # Check the accuracy
-    assert accuracy_score(y_test, y_pred) > 0.9
 
 # @pytest.mark.parametrize("nsax,nsfa", [(0, 1), (1, 0)])
 # def test_mrsqm_random_state(nsax, nsfa):
@@ -102,15 +138,15 @@ def test_mrsqm_coffee_accuracy():
 #     # Check that the predictions are the same
 #     assert approx(y_pred_1) == y_pred_2
 
-# @pytest.mark.parametrize("nsax,nsfa", [(0, 1), (1, 0)])
-def test_mrsqm_serialization(nsax, nsfa):
+@pytest.mark.parametrize("symrep", [('sax'), ('sfa'), ('sax','sfa')])
+def test_mrsqm_serialization(symrep):
     import pickle 
     
     # Load the dataset
     X_train, X_test, y_train, y_test = load_coffee_dataset()
 
     # Create a MrSQMClassifier
-    clf = MrSEQLClassifier()
+    clf = MrSEQLClassifier(symrep = symrep)
 
     # Train the classifier
     clf.fit(X_train, y_train)

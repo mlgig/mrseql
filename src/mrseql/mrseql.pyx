@@ -7,9 +7,11 @@
 STUFF = "Hi"  # https://stackoverflow.com/questions/8024805/cython-compiled-c-extension-importerror-dynamic-module-does-not-define-init-fu
 
 import numpy as np
+import pandas as pd
 
 from libcpp.string cimport string
 from libcpp.vector cimport vector
+from libcpp cimport bool
 
 from sklearn.linear_model import LogisticRegression
 
@@ -17,10 +19,43 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 
-from sktime.transformations.panel.dictionary_based import SFA
-from sktime.utils.validation.panel import check_X, check_X_y
+# from sktime.transformations.panel.dictionary_based import SFA
+# from sktime.utils.validation.panel import check_X, check_X_y
 
 __author__ = ["Thach Le Nguyen"]
+
+def check_X_format(X):
+    """Check the format of the input data.
+
+    Parameters
+    ----------
+    X : nested pandas DataFrame or nested pandas Series
+        The input data.
+
+    Returns
+    -------
+    X : pandas DataFrame
+        The input data in tabular format.
+    """
+    if isinstance(X, (pd.DataFrame, pd.Series)):
+        X_3d = np.stack(X.applymap(lambda cell:cell.to_numpy()).apply(lambda row: np.stack(row),axis=1).to_numpy())
+        return X_3d
+    elif isinstance(X, np.ndarray):
+        if X.ndim == 3:
+            return X
+        elif X.ndim == 2:
+            return X[:, np.newaxis, :]
+        else:
+            raise ValueError(
+                f"X must be 2D or 3D, but found: {X.ndim}D"
+            )
+    else:
+        raise ValueError(
+            f"X must be pandas DataFrame, pandas Series or numpy array, "
+            f"but found: {type(X)}"
+        )
+
+    return None
 
 ######################### SAX and SFA #########################
 
@@ -60,33 +95,69 @@ cdef class PySAX:
         return self.thisptr.map_weighted_patterns(ts, sequences, weights)
 
 
+###########################################################################
 
-class AdaptedSFA:
-    """SFA adaptation for Mr-SEQL. This code uses a different alphabet for each
-    Fourier coefficient in the output of SFA."""
+cdef extern from "sfa/SFAWrapper.cpp":
+    cdef cppclass SFAWrapper:
+        SFAWrapper(int, int, int, bool, bool)        
+        void fit(vector[vector[double]])
+        vector[string] transform(vector[vector[double]])
+        vector[string] transform_with_lookuptable(vector[vector[double]], vector[vector[double]])
+        vector[vector[double]] get_lookuptable()
+    # cdef void printHello()
 
-    def __init__(self, int N, int w, int a):
-        self.sfa = SFA(w, a, N, norm=True, remove_repeat_words=True)
 
-    def fit(self, train_x):
-        self.sfa.fit(train_x)
+cdef class PySFA:
+    '''
+    Wrapper of SFA C++ implementation.
+    '''
+    cdef SFAWrapper * thisptr      # hold a C++ instance which we're wrapping
 
-    def timeseries2SFAseq(self, ts):
-        """Convert time series to SFA sequence."""
-        dfts = self.sfa._mft(ts)
-        sfa_str = b''
-        for window in range(dfts.shape[0]):
-            if sfa_str:
-                sfa_str += b' '
-            dft = dfts[window]
-            first_char = ord(b'A')
-            for i in range(self.sfa.word_length):
-                for bp in range(self.sfa.alphabet_size):
-                    if dft[i] <= self.sfa.breakpoints[i][bp]:
-                        sfa_str += bytes([first_char + bp])
-                        break
-                first_char += self.sfa.alphabet_size
-        return sfa_str
+    def __cinit__(self, int N, int w, int a, bool norm, bool normTS):
+        self.thisptr = new SFAWrapper(N, w + 1, a, norm, normTS) # w+1 to skip second coef 
+
+    def __dealloc__(self):
+        del self.thisptr
+
+    def fit(self, X):
+        self.thisptr.fit(X)
+        return self
+
+    def transform(self, X):
+        return self.thisptr.transform(X)
+
+    def transform_with_lookuptable(self, X, lookuptable): # no need to fit 
+        return self.thisptr.transform_with_lookuptable(X, lookuptable)
+
+    def get_lookuptable(self):
+        return self.thisptr.get_lookuptable()
+
+# class AdaptedSFA:
+#     """SFA adaptation for Mr-SEQL. This code uses a different alphabet for each
+#     Fourier coefficient in the output of SFA."""
+
+#     def __init__(self, int N, int w, int a):
+#         self.sfa = SFA(w, a, N, norm=True, remove_repeat_words=True)
+
+#     def fit(self, train_x):
+#         self.sfa.fit(train_x)
+
+#     def timeseries2SFAseq(self, ts):
+#         """Convert time series to SFA sequence."""
+#         dfts = self.sfa._mft(ts)
+#         sfa_str = b''
+#         for window in range(dfts.shape[0]):
+#             if sfa_str:
+#                 sfa_str += b' '
+#             dft = dfts[window]
+#             first_char = ord(b'A')
+#             for i in range(self.sfa.word_length):
+#                 for bp in range(self.sfa.alphabet_size):
+#                     if dft[i] <= self.sfa.breakpoints[i][bp]:
+#                         sfa_str += bytes([first_char + bp])
+#                         break
+#                 first_char += self.sfa.alphabet_size
+#         return sfa_str
 
 ###########################################################################
 
@@ -245,11 +316,9 @@ class MrSEQLClassifier(BaseEstimator, ClassifierMixin):
 
 
         self.custom_config = custom_config
-        self.config = self.custom_config
-        self.seql_clf = SEQLCLF()  # seql model
-        self.ots_clf = None  # scikit-learn model
-        # store fitted sfa for later transformation
-        self.sfas = {}
+        
+        
+        
         self._is_fitted = False
 
     def check_is_fitted(self):
@@ -285,7 +354,17 @@ class MrSEQLClassifier(BaseEstimator, ClassifierMixin):
             if 'sfa' in self.symrep:
                 for p in pars:
                     self.config.append(
-                        {'method': 'sfa', 'window': p[0], 'word': 8, 'alphabet': p[2]})
+                        {'method': 'sfa', 
+                        'window': p[0], 
+                        'word': 8, 
+                        'alphabet': p[2] , 
+                        'normSFA': False, 
+                        'normTS': True,
+                        #'diff': self.rng.choice([True,False]),
+                        'signature':[]
+                        })   
+                    # self.config.append(
+                    #     {'method': 'sfa', 'window': p[0], 'word': 8, 'alphabet': p[2]})
 
 
         for cfg in self.config:
@@ -299,16 +378,21 @@ class MrSEQLClassifier(BaseEstimator, ClassifierMixin):
                         tssr.append(sr)
 
                 if cfg['method'] == 'sfa':  # convert time series to SFA
-                    if (cfg['window'], cfg['word'], cfg['alphabet']) not in self.sfas:
-                        sfa = AdaptedSFA(
-                            cfg['window'], cfg['word'], cfg['alphabet'])
-                        sfa.fit(ts_x[:, [i], :])
-                        self.sfas[(cfg['window'], cfg['word'],
-                                cfg['alphabet'])] = sfa
-                    for ts in ts_x[:, i]:
-                        sr = self.sfas[(cfg['window'], cfg['word'],
-                                        cfg['alphabet'])].timeseries2SFAseq(ts)
-                        tssr.append(sr)
+                    if len(cfg['signature']) < (i+1):
+                        cfg['signature'].append(PySFA(cfg['window'], cfg['word'], cfg['alphabet'], cfg['normSFA'], cfg['normTS']).fit(ts_x[:,i,:]).get_lookuptable())
+
+                    tssr = PySFA(cfg['window'], cfg['word'], cfg['alphabet'], cfg['normSFA'], cfg['normTS']).transform_with_lookuptable(ts_x[:,i,:], cfg['signature'][i])
+                #     if (cfg['window'], cfg['word'], cfg['alphabet']) not in self.sfas:
+                #         sfa = AdaptedSFA(
+                #             cfg['window'], cfg['word'], cfg['alphabet'])
+                #         sfa.fit(ts_x[:, [i], :])
+                #         self.sfas[(cfg['window'], cfg['word'],
+                #                 cfg['alphabet'])] = sfa
+                #     for ts in ts_x[:, i]:
+                #         sr = self.sfas[(cfg['window'], cfg['word'],
+                #                         cfg['alphabet'])].timeseries2SFAseq(ts)
+                #         tssr.append(sr)
+                
 
                 multi_tssr.append(tssr)
 
@@ -344,11 +428,18 @@ class MrSEQLClassifier(BaseEstimator, ClassifierMixin):
         self
             Fitted estimator.
         """
-        X, y = check_X_y(X,y, coerce_to_numpy=True)
-
+        # X, y = check_X_y(X,y, coerce_to_numpy=True)
+        X = check_X_format(X)
+        if self.custom_config is None:
+            self.config = [] # http://effbot.org/zone/default-values.htm
+        else:
+            self.config = self.custom_config
         # transform time series to multiple symbolic representations
+        
+        
         mr_seqs = self._transform_time_series(X)
 
+        self.seql_clf = SEQLCLF()  # seql model
         self.seql_clf.fit(mr_seqs,y)
         self.classes_ = self.seql_clf.classes_
         self.sequences = self.seql_clf.get_sequence_features()
@@ -383,7 +474,8 @@ class MrSEQLClassifier(BaseEstimator, ClassifierMixin):
             where classes are ordered as they are in ``self.classes_``.
         """
         self.check_is_fitted()
-        X = check_X(X, coerce_to_numpy=True)
+        # X = check_X(X, coerce_to_numpy=True)
+        X = check_X_format(X)
         mr_seqs = self._transform_time_series(X)
 
         if self.seql_mode == 'fs':
