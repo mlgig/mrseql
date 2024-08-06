@@ -5,64 +5,54 @@ on:
     types: [created] 
 
 jobs:
-  # build_linux_wheels:
-  #   name: Build ${{ matrix.cibw_python }}-${{ matrix.cibw_libc }}_${{ matrix.cibw_arch }} wheel on ${{ matrix.os }}
-  #   runs-on: ${{ matrix.os }}
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       os: [ubuntu-22.04]
+  build_linux_wheels:
+    name: Build ${{ matrix.cibw_python }}-${{ matrix.cibw_libc }}_${{ matrix.cibw_arch }} wheel on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04]
+        cibw_python: ["cp39", "cp310", "cp311", "cp312", "pp39"]
+        # SciPy and NumPy don't support musllinux
+        cibw_libc: ["manylinux"]
+        cibw_arch: ["x86_64", "aarch64"]
 
-  #       # cibw_python: ["cp38", "cp39", "cp310", "cp311", "pp38"]
-  #       cibw_python: ["cp310", "cp311"]
-  #       # SciPy and NumPy don't support musllinux
-  #       cibw_libc: ["manylinux"]
-  #       cibw_arch: ["x86_64", "i686", "aarch64"]
+        exclude:
+          # Numpy only supports pypy39 x86_64 on Linux
+          - cibw_python: "pp39"
+            cibw_arch: "aarch64"
 
-  #       exclude:
-  #         # SciPy and NumPy don't support 32-bit Linux from Python 3.10 and onwards
-  #         - cibw_python: "cp310"
-  #           cibw_arch: "i686"
-  #         - cibw_python: "cp311"
-  #           cibw_arch: "i686"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  #         # Numpy only supports pypy38 x86_64 on Linux
-  #         - cibw_python: "pp38"
-  #           cibw_arch: "i686"
-  #         - cibw_python: "pp38"
-  #           cibw_arch: "aarch64"
+      - uses: actions/setup-python@v5
+        name: Install Python
+        with:
+          python-version: '3.12'
 
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #       with:
-  #         fetch-depth: 0     
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
 
-  #     - uses: actions/setup-python@v4
-  #       name: Install Python
-  #       with:
-  #         python-version: '3.11'
+      - name: Install cibuildwheel
+        run: |
+          python -m pip install cibuildwheel
 
-  #     - name: Set up QEMU
-  #       uses: docker/setup-qemu-action@v2
-  #       with:
-  #         platforms: arm64
+      - name: Build the wheel
+        run: |
+          python -m cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: ${{ matrix.cibw_python }}-${{ matrix.cibw_libc }}_${{ matrix.cibw_arch }}
 
-  #     - name: Install cibuildwheel
-  #       run: |
-  #         python -m pip install cibuildwheel
-
-  #     - name: Build the wheel
-  #       run: |
-  #         python -m cibuildwheel --output-dir dist
-  #       env:
-  #         CIBW_BUILD: ${{ matrix.cibw_python }}-${{ matrix.cibw_libc }}_${{ matrix.cibw_arch }}
-
-  #     - uses: actions/upload-artifact@v2
-  #       name: Upload wheels as artifacts
-  #       if: ${{ github.event_name != 'pull_request' }}
-  #       with:
-  #         name: wheels
-  #         path: ./dist/*.whl
+      - uses: actions/upload-artifact@v4
+        name: Upload wheels as artifacts
+        if: ${{ github.event_name != 'pull_request' }}
+        with:
+          name: wheels-${{ matrix.cibw_python }}-${{ matrix.cibw_libc }}_${{ matrix.cibw_arch }}
+          path: ./dist/*.whl
 
   # build_macos_wheels:
   #   name: Build ${{ matrix.cibw_python }}-macosx_${{ matrix.cibw_arch }} wheel on ${{ matrix.os }}
@@ -119,6 +109,7 @@ jobs:
   deploy:
     name: Release
     # needs: [build_macos_wheels, build_linux_wheels]
+    needs: [build_linux_wheels]
     # if: github.repository_owner == 'pyFFTW' && startsWith(github.ref, 'refs/tags/v') && always()
     if: github.repository_owner == 'mlgig' && always()
     runs-on: ubuntu-latest
@@ -150,9 +141,9 @@ jobs:
           ls -la ${{ github.workspace }}/dist
           # We prefer to release wheels before source because otherwise there is a
           # small window during which users who pip install pyfftw will require compilation.
-          # twine upload ${{ github.workspace }}/dist/*.whl
+          twine upload ${{ github.workspace }}/dist/*.whl
           # twine upload --repository testpypi ${{ github.workspace }}/dist/*.whl
-          twine upload ${{ github.workspace }}/dist/*.tar.gz
+          # twine upload ${{ github.workspace }}/dist/*.tar.gz
           # twine upload --repository testpypi ${{ github.workspace }}/dist/*.tar.gz
         env:
           # TWINE_USERNAME: ${{ secrets.TWINE_USERNAME }}
