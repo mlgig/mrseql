@@ -16,7 +16,7 @@ build-verbosity = 2
 
     # Fallback, but we specify versions more explicitly below to achieve maximal
     # compatibility
-    
+    before-all = "apt update; apt install libfftw3-dev"
 
     manylinux-x86_64-image = "manylinux_2_28"
     manylinux-i686-image = "manylinux2014"
@@ -56,7 +56,7 @@ build-verbosity = 2
     manylinux-pypy_i686-image = "manylinux2010"
     manylinux-pypy_aarch64-image = "manylinux2014"
 
-    
+    before-all = "yum install -y fftw-devel"
 
     # Use manylinux2014 for Python3.9, as <3.9.5 does not initially work with manylinux_x_y
     [[tool.cibuildwheel.overrides]]
@@ -71,7 +71,7 @@ build-verbosity = 2
     manylinux-pypy_i686-image = "manylinux2014"
     manylinux-pypy_aarch64-image = "manylinux2014"
 
-    
+    before-all = "yum install -y fftw-devel"
 
     [[tool.cibuildwheel.overrides]]
     select = "{c,p}p310-manylinux*"
@@ -85,7 +85,7 @@ build-verbosity = 2
     manylinux-pypy_i686-image = "manylinux2014"
     manylinux-pypy_aarch64-image = "manylinux2014"
 
-  
+    before-all = "yum install -y fftw-devel"
 
     [[tool.cibuildwheel.overrides]]
     select = "{c,p}p311-manylinux*"
@@ -99,15 +99,21 @@ build-verbosity = 2
     manylinux-pypy_x86_64-image = "manylinux2014"
     manylinux-pypy_i686-image = "manylinux2014"
     manylinux-pypy_aarch64-image = "manylinux2014"
- 
 
+    before-all = "yum install -y fftw-devel"
+
+    # Currently not supported
+    # Even numpy does not support this
+    # This is ignored in the wheel_tests_and_release.yml file
+    # [[tool.cibuildwheel.overrides]]
+    # select = "*-musllinux*"
+    # before-all = "apk add fftw-dev"
 
 [build-system]
 requires = [
-    "wheel",
-    "setuptools",
+    "wheel>=0.31.0",
+    "setuptools>=38.6.0",
     "Cython>=0.29.18",
-    "sktime",
 
     # NumPy dependencies - to update these, sync from
     # https://github.com/scipy/oldest-supported-numpy/

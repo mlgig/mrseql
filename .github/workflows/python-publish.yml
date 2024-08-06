@@ -54,62 +54,60 @@ jobs:
           name: wheels-${{ matrix.cibw_python }}-${{ matrix.cibw_libc }}_${{ matrix.cibw_arch }}
           path: ./dist/*.whl
 
-  # build_macos_wheels:
-  #   name: Build ${{ matrix.cibw_python }}-macosx_${{ matrix.cibw_arch }} wheel on ${{ matrix.os }}
-  #   runs-on: ${{ matrix.os }}
-  #   strategy:
-  #     fail-fast: false
-  #     matrix:
-  #       os: [macos-12]
+  build_macos_wheels:
+    name: Build ${{ matrix.cibw_python }}-macosx_${{ matrix.cibw_arch }} wheel on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-12]
+        cibw_python: ["cp39", "cp310", "cp311", "cp312", "pp39"]
+        cibw_arch: ["x86_64"]
 
-  #       # cibw_python: ["cp38", "cp39", "cp310", "cp311", "pp38"]
-  #       cibw_python: ["cp38", "cp39", "cp310", "cp311"]
-  #       # See issue [#352](https://github.com/pyFFTW/pyFFTW/issues/352)
-  #       # TODO: Add arm64 when we support it
-  #       # Current problem seems to be that installed libfftw3 does not provide arm64
-  #       # symbols
-  #       cibw_arch: ["x86_64"]
+        exclude:
+          # cibuildwheel only supports pypy39 x86_64 on MacOS
+          - cibw_python: "pp39"
+            cibw_arch: "arm64"
+          - cibw_python: "pp39"
+            cibw_arch: "universal2"
 
-  #       exclude:
-  #         # cibuildwheel only supports pypy38 x86_64 on MacOS
-  #         - cibw_python: "pp38"
-  #           cibw_arch: "arm64"
-  #         - cibw_python: "pp38"
-  #           cibw_arch: "universal2"
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "12.0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-  #   env:
-  #     MACOSX_DEPLOYMENT_TARGET: "10.13"
-  #   steps:
-  #     - uses: actions/checkout@v3
-  #       with:
-  #         fetch-depth: 0      
+      - name: Install FFTW3 libraries
+        run: |
+          brew install fftw
 
-  #     - uses: actions/setup-python@v4
-  #       name: Install Python
-  #       with:
-  #         python-version: '3.11'
+      - uses: actions/setup-python@v5
+        name: Install Python
+        with:
+          python-version: '3.12'
 
-  #     - name: Install cibuildwheel
-  #       run: |
-  #         python -m pip install cibuildwheel
+      - name: Install cibuildwheel
+        run: |
+          python -m pip install cibuildwheel
 
-  #     - name: Build wheels for CPython (MacOS)
-  #       run: |
-  #         python -m cibuildwheel --output-dir dist
-  #       env:
-  #         CIBW_BUILD: ${{ matrix.cibw_python }}-macosx_${{ matrix.cibw_arch }}
+      - name: Build wheels for CPython (MacOS)
+        run: |
+          python -m cibuildwheel --output-dir dist
+        env:
+          CIBW_BUILD: ${{ matrix.cibw_python }}-macosx_${{ matrix.cibw_arch }}
 
-  #     - uses: actions/upload-artifact@v2
-  #       name: Upload wheels as artifacts
-  #       if: ${{ github.event_name != 'pull_request' }}
-  #       with:
-  #         name: wheels
-  #         path: ./dist/*.whl  
+      - uses: actions/upload-artifact@v4
+        name: Upload wheels as artifacts
+        if: ${{ github.event_name != 'pull_request' }}
+        with:
+          name: wheels-${{ matrix.cibw_python }}-macosx_${{ matrix.cibw_arch }}
+          path: ./dist/*.whl
 
   deploy:
     name: Release
-    # needs: [build_macos_wheels, build_linux_wheels]
-    needs: [build_linux_wheels]
+    needs: [build_macos_wheels, build_linux_wheels]
+    # needs: [build_linux_wheels]
     # if: github.repository_owner == 'pyFFTW' && startsWith(github.ref, 'refs/tags/v') && always()
     if: github.repository_owner == 'mlgig' && always()
     runs-on: ubuntu-latest
