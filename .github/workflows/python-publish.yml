@@ -135,7 +135,8 @@ jobs:
         run: |
           # MRSEQL_VERSION=$(git describe --tags)
           pip install cython
-          python setup.py sdist
+          # python setup.py sdist
+          python -m build --sdist
           ls -la ${{ github.workspace }}/dist
           # We prefer to release wheels before source because otherwise there is a
           # small window during which users who pip install pyfftw will require compilation.
