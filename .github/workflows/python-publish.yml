@@ -125,15 +125,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install twine
 
-      # - uses: actions/download-artifact@v2
-      #   id: download
-      #   with:
-      #     name: wheels
-      #     path: ./dist
+      - uses: actions/download-artifact@v2
+        id: download
+        with:
+          name: wheels
+          path: ./dist
 
       - name: Publish the source distribution on PyPI
         run: |
-          # PYFFTW_VERSION=$(git describe --tags)
+          # MRSEQL_VERSION=$(git describe --tags)
           pip install cython
           python setup.py sdist
           ls -la ${{ github.workspace }}/dist
